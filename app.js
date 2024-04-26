@@ -2,14 +2,14 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const { celebrate, Joi, errors } = require('celebrate');
-const db = require('./database'); // Modul database yang telah kita setup
+const db = require('./database');
 
 const app = express();
 const PORT = 3000;
 
 app.use(bodyParser.json());
 
-// Middleware untuk autentikasi
+
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -21,7 +21,7 @@ function authenticateToken(req, res, next) {
     });
 }
 
-// Middleware untuk validasi
+
 const taskValidator = celebrate({
     body: Joi.object().keys({
         title: Joi.string().required(),
@@ -30,7 +30,7 @@ const taskValidator = celebrate({
     })
 });
 
-// Routes
+
 app.post('/api/tasks', authenticateToken, taskValidator, async (req, res) => {
     try {
         const { title, description, dueDate, userId } = req.user;
@@ -81,7 +81,7 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// Global error handler
+
 app.use(errors());
 
 app.listen(PORT, () => {
