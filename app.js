@@ -1,13 +1,68 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
+const bodyParser = require('body-parser');
+const db = require('./database'); // Import koneksi database
+const bcrypt = require('bcryptjs'); // Import bcryptjs untuk hash password
+
 const { celebrate, Joi, errors } = require('celebrate');
-const db = require('./database');
 
 const app = express();
-const PORT = 3000;
-
 app.use(bodyParser.json());
+
+const SECRET_KEY = 'asgd87'; // Gunakan variabel environment di produksi
+
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    try {
+        // Mencari pengguna berdasarkan username
+        const [users] = await db.execute('SELECT * FROM Users WHERE username = ?', [username]);
+        const user = users[0];
+
+        if (user && bcrypt.compareSync(password, user.password)) {
+            // Pengguna ditemukan dan password cocok
+            const token = jwt.sign({ userId: user.id, username: user.username }, SECRET_KEY, { expiresIn: '1h' });
+            res.json({ token: token });
+        } else {
+            // Kredensial tidak valid atau pengguna tidak ditemukan
+            res.status(401).send('Username or password incorrect');
+        }
+    } catch (error) {
+        console.error('Database query error', error);
+        res.status(500).send('Internal server error');
+    }
+});
+
+app.listen(3000, () => {
+    console.log('Server running on http://localhost:3000');
+});
+
+app.post('/api/register', async (req, res) => {
+    const { username, password } = req.body;
+
+    try {
+        // Cek jika pengguna sudah ada
+        const [userExists] = await db.execute('SELECT * FROM Users WHERE username = ?', [username]);
+        
+        if (userExists.length > 0) {
+            return res.status(409).send('Username already exists'); // Konflik
+        }
+
+        // Hash password sebelum menyimpan ke database
+        const hashedPassword = await bcrypt.hash(password, 8);
+
+        // Menambahkan pengguna baru ke database
+        const [createResult] = await db.execute(
+            'INSERT INTO Users (username, password) VALUES (?, ?)',
+            [username, hashedPassword]
+        );
+
+        res.status(201).send({ message: "User registered successfully", userId: createResult.insertId });
+    } catch (error) {
+        console.error('Database query error', error);
+        res.status(500).send('Internal server error');
+    }
+});
 
 
 function authenticateToken(req, res, next) {
@@ -82,8 +137,3 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
 });
 
 
-app.use(errors());
-
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
